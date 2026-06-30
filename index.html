@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gompashi">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="1-icon-192.png">
+<title>GOMPASHI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --red: #c0272d;
+    --red-glow: rgba(192, 39, 45, 0.4);
+    --dim: #1a1a1a;
+    --mid: #2a2a2a;
+    --text: #e8e0d0;
+    --muted: #888;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Bebas Neue', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: #0a0a0a;
+    color: var(--text);
+    font-family: var(--mono);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 20px 36px;
+    position: relative;
+  }
+
+  .wordmark {
+    font-family: var(--display);
+    letter-spacing: 0.45em;
+    font-size: clamp(18px, 4vw, 26px);
+    color: var(--text);
+    opacity: 0.85;
+    text-align: center;
+  }
+
+  .compass-wrap {
+    position: relative;
+    width: min(78vw, 340px);
+    aspect-ratio: 1;
+    flex-shrink: 0;
+  }
+
+  /* The full SVG compass + bottle needle combined */
+  #compass-full {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  /* The bottle group rotates as the needle */
+  #bottle-needle {
+    transform-origin: 150px 150px;
+    transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .distance-block {
+    text-align: center;
+  }
+
+  .distance-num {
+    font-family: var(--display);
+    font-size: clamp(52px, 16vw, 88px);
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: 0.05em;
+    text-shadow: 0 0 20px rgba(232,224,208,0.15), 0 0 2px rgba(232,224,208,0.4);
+  }
+
+  .distance-unit {
+    font-family: var(--display);
+    font-size: clamp(28px, 8vw, 48px);
+    letter-spacing: 0.12em;
+    color: var(--text);
+    opacity: 0.7;
+    margin-left: 4px;
+  }
+
+  .store-name {
+    margin-top: 6px;
+    font-size: clamp(11px, 3vw, 14px);
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    min-height: 1.4em;
+    text-align: center;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 14px 0;
+    border: none;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:active { transform: scale(0.97); opacity: 0.85; }
+
+  .btn-ghost { background: var(--mid); color: var(--text); }
+  .btn-red { background: var(--red); color: #fff; box-shadow: 0 0 18px var(--red-glow); }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 32px;
+    background: #0a0a0a;
+    z-index: 10;
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay-title {
+    font-family: var(--display);
+    font-size: 32px;
+    letter-spacing: 0.2em;
+  }
+
+  .overlay-sub {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    max-width: 280px;
+  }
+
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--mid);
+    border-top-color: var(--red);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #app::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(to bottom, transparent, transparent 2px, rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px);
+    pointer-events: none;
+    z-index: 99;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="overlay-title">GOMPASHI</div>
+    <div class="overlay-sub">Haetaan sijaintiasi ja lähimpiä Alkoja…</div>
+  </div>
+
+  <div class="overlay hidden" id="error-overlay">
+    <div class="overlay-title">VIRHE</div>
+    <div class="overlay-sub" id="error-msg">Sijaintia ei saatu.</div>
+    <div class="overlay-sub" id="debug-info" style="font-size:10px;opacity:0.6;max-width:320px;word-break:break-all;margin-top:4px;"></div>
+    <button class="btn btn-red" style="max-width:200px;margin-top:8px" onclick="init()">Yritä uudelleen</button>
+  </div>
+
+  <div class="overlay hidden" id="insecure-overlay">
+    <div class="overlay-title">EI HTTPS</div>
+    <div class="overlay-sub">
+      Selain estää sijainnin tällä sivulla, koska se ei ole turvallinen (HTTPS).<br><br>
+      Avaa sovellus oikealta verkko-osoitteelta (https://…) — älä avaa tiedostoa suoraan puhelimesta.
+    </div>
+  </div>
+
+  <div id="main-ui" style="display:none;width:100%;height:100%;flex-direction:column;align-items:center;justify-content:space-between;">
+    <div class="wordmark">G O M P A S H I</div>
+
+    <div class="compass-wrap">
+      <svg id="compass-full" viewBox="0 0 300 300">
+        <defs>
+          <!-- Red glow filter for bottle -->
+          <filter id="redglow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="softglow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <!-- Label background circle clip -->
+          <clipPath id="labelclip">
+            <circle cx="150" cy="150" r="58"/>
+          </clipPath>
+        </defs>
+
+        <!-- ── COMPASS RING ── -->
+        <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(232,224,208,0.07)" stroke-width="1.5"/>
+        <circle cx="150" cy="150" r="112" fill="none" stroke="rgba(232,224,208,0.05)" stroke-width="1"/>
+        <line x1="150" y1="10" x2="150" y2="290" stroke="rgba(232,224,208,0.06)" stroke-width="1"/>
+        <line x1="10" y1="150" x2="290" y2="150" stroke="rgba(232,224,208,0.06)" stroke-width="1"/>
+        <line x1="52" y1="52" x2="248" y2="248" stroke="rgba(232,224,208,0.03)" stroke-width="1"/>
+        <line x1="248" y1="52" x2="52" y2="248" stroke="rgba(232,224,208,0.03)" stroke-width="1"/>
+        <!-- Cardinal ticks -->
+        <g stroke="rgba(232,224,208,0.3)" stroke-width="2">
+          <line x1="150" y1="10" x2="150" y2="24"/>
+          <line x1="150" y1="276" x2="150" y2="290"/>
+          <line x1="10" y1="150" x2="24" y2="150"/>
+          <line x1="276" y1="150" x2="290" y2="150"/>
+        </g>
+        <!-- Cardinal labels -->
+        <text x="150" y="8" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="11" fill="rgba(232,224,208,0.35)">P</text>
+        <text x="150" y="298" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="11" fill="rgba(232,224,208,0.35)">E</text>
+        <text x="6" y="154" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="11" fill="rgba(232,224,208,0.35)">L</text>
+        <text x="294" y="154" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="11" fill="rgba(232,224,208,0.35)">I</text>
+        <!-- Minor ticks drawn by JS -->
+        <g id="minor-ticks" stroke="rgba(232,224,208,0.11)" stroke-width="1"></g>
+        <!-- Red ambient ring -->
+        <circle cx="150" cy="150" r="126" fill="none" stroke="rgba(192,39,45,0.06)" stroke-width="4"/>
+
+        <!-- ── GAMBINA BOTTLE NEEDLE ── -->
+        <!-- This group rotates around the center (150,150) -->
+        <g id="bottle-needle">
+          <!--
+            Bottle is drawn vertically, pointing UP from center.
+            Bottom of bottle sits at center (150,150), top points up toward North.
+            Total bottle height: ~100px, width ~28px
+            Bottle bottom center = 150,150 → bottle spans from y=50 (top of neck) to y=150 (base)
+          -->
+
+          <!-- === BOTTLE BODY === -->
+          <!-- Main dark body -->
+          <rect x="133" y="90" width="34" height="62" rx="4" ry="4"
+                fill="#1a0a0c"/>
+          <!-- Body highlight left -->
+          <rect x="133" y="90" width="8" height="62" rx="3" ry="3"
+                fill="#2d1015" opacity="0.7"/>
+          <!-- Body sheen -->
+          <rect x="136" y="92" width="4" height="55" rx="2" ry="2"
+                fill="rgba(255,255,255,0.06)"/>
+
+          <!-- === RED LABEL === -->
+          <rect x="133" y="104" width="34" height="30" rx="2" ry="2"
+                fill="#c0272d"/>
+          <!-- Label shine -->
+          <rect x="133" y="104" width="34" height="8" rx="2" ry="2"
+                fill="rgba(255,255,255,0.12)"/>
+          <!-- Label text: GAMBINA -->
+          <text x="150" y="116" text-anchor="middle"
+                font-family="'Bebas Neue',sans-serif" font-size="7.5"
+                fill="white" letter-spacing="1">GAMBINA</text>
+          <!-- Label text: Cocktail -->
+          <text x="150" y="125" text-anchor="middle"
+                font-family="'Share Tech Mono',monospace" font-size="4.5"
+                fill="rgba(255,255,255,0.75)" letter-spacing="0.5">Cocktail</text>
+          <!-- Label border lines -->
+          <rect x="133" y="104" width="34" height="30" rx="2" ry="2"
+                fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="0.6"/>
+
+          <!-- === BOTTLE SHOULDER (taper) === -->
+          <path d="M133,90 Q133,80 138,76 L162,76 Q167,80 167,90 Z"
+                fill="#1a0a0c"/>
+          <!-- Shoulder highlight -->
+          <path d="M133,90 Q133,82 137,78 L141,78 Q137,82 137,90 Z"
+                fill="rgba(255,255,255,0.05)"/>
+
+          <!-- === NECK === -->
+          <rect x="143" y="58" width="14" height="20" rx="2" ry="2"
+                fill="#1a0a0c"/>
+          <!-- Neck highlight -->
+          <rect x="143" y="58" width="4" height="20" rx="2" ry="2"
+                fill="rgba(255,255,255,0.06)"/>
+
+          <!-- === RED CAP / FOIL === -->
+          <rect x="141" y="52" width="18" height="10" rx="2" ry="2"
+                fill="#c0272d"/>
+          <!-- Cap shine -->
+          <rect x="141" y="52" width="18" height="4" rx="2" ry="2"
+                fill="rgba(255,255,255,0.2)"/>
+
+          <!-- === BOTTLE TIP (top of cap) === -->
+          <rect x="147" y="48" width="6" height="6" rx="1" ry="1"
+                fill="#8b0000"/>
+
+          <!-- === BOTTLE BASE === -->
+          <rect x="131" y="150" width="38" height="6" rx="2" ry="2"
+                fill="#0d0508"/>
+          <!-- Base glass thickness line -->
+          <line x1="133" y1="152" x2="167" y2="152"
+                stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+          <!-- === RED GLOW behind bottle === -->
+          <ellipse cx="150" cy="130" rx="22" ry="50"
+                   fill="none" stroke="rgba(192,39,45,0.25)" stroke-width="8"
+                   filter="url(#redglow)"/>
+
+          <!-- === CENTER DOT (pivot) === -->
+          <circle cx="150" cy="150" r="5" fill="#c0272d"
+                  filter="url(#softglow)"/>
+          <circle cx="150" cy="150" r="2.5" fill="#ff6060"/>
+        </g>
+
+      </svg>
+    </div>
+
+    <div class="distance-block">
+      <div>
+        <span class="distance-num" id="dist-num">–</span>
+        <span class="distance-unit">km</span>
+      </div>
+      <div class="store-name" id="store-name">–</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showStore(-1)">← Edellinen</button>
+      <button class="btn btn-red" onclick="showStore(1)">Seuraava →</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let stores = [];
+let currentIdx = 0;
+let userLat, userLon;
+let compassHeading = null;
+let currentBearing = 0;
+
+async function init() {
+  // Geolocation requires a secure context (https:// or localhost).
+  // file:// or plain http:// will silently fail or never prompt.
+  const isSecure = window.isSecureContext === true;
+  if (!isSecure) {
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('insecure-overlay').classList.remove('hidden');
+    return;
+  }
+
+  showOverlay('loading');
+  document.getElementById('debug-info').textContent = '';
+  if (!navigator.geolocation) { showError('Selaimesi ei tue paikannusta.'); return; }
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    userLat = pos.coords.latitude;
+    userLon = pos.coords.longitude;
+    let fetchErr = null;
+    try { stores = await fetchAlkos(userLat, userLon); }
+    catch(e) {
+      fetchErr = e;
+      console.error('Gompashi: Overpass fetch failed', e);
+    }
+    if (fetchErr) {
+      const dbg = window.__gompashiDebug;
+      let dbgText = '';
+      if (dbg) {
+        dbgText = `lat:${dbg.lat.toFixed(4)} lon:${dbg.lon.toFixed(4)} | ` +
+          dbg.attempts.map(a => `${a.endpoint.replace('https://','').split('/')[0]}: ${a.error || 'ok'}`).join(' | ');
+      }
+      document.getElementById('debug-info').textContent = dbgText;
+      showError('Alkojen haku epäonnistui (palvelin ei vastannut). Yritä hetken päästä uudelleen.');
+      return;
+    }
+    if (!stores.length) {
+      const dbg = window.__gompashiDebug;
+      let dbgText = '';
+      if (dbg) {
+        dbgText = `lat:${dbg.lat.toFixed(4)} lon:${dbg.lon.toFixed(4)} | ` +
+          dbg.attempts.map(a => `${a.endpoint.replace('https://','').split('/')[0]}: ${a.error || (a.rawElementCount + ' raw → ' + a.finalCount + ' final')}`).join(' | ');
+      }
+      document.getElementById('debug-info').textContent = dbgText;
+      showError('Ei Alkoja löytynyt 50 km säteeltä. Jos olet kaupungissa, tämä on todennäköisesti väliaikainen virhe — yritä uudelleen.');
+      return;
+    }
+    sortStores();
+    showOverlay(null);
+    document.getElementById('main-ui').style.display = 'flex';
+    updateDisplay();
+    startCompass();
+  }, err => {
+    // Give a more specific reason where possible
+    if (err.code === err.PERMISSION_DENIED) {
+      showError('Sijaintilupa evätty. Salli sijainti selaimen/puhelimen asetuksista ja lataa sivu uudelleen.');
+    } else if (err.code === err.POSITION_UNAVAILABLE) {
+      showError('Sijaintia ei voitu määrittää. Tarkista että GPS/sijainti on päällä.');
+    } else if (err.code === err.TIMEOUT) {
+      showError('Sijainnin haku aikakatkaistiin. Yritä uudelleen ulkona tai ikkunan lähellä.');
+    } else {
+      showError('Sijaintia ei saatu. Salli sijainti selaimessa.');
+    }
+  },
+  { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 });
+}
+
+async function fetchAlkos(lat, lon) {
+  // Match purely by name containing "Alko" as a whole word, regardless of shop tag,
+  // since real-world OSM tagging for Alko stores is inconsistent (some are shop=alcohol,
+  // some shop=beverages, some lack a shop tag matching exactly).
+  // Shorter server-side timeout (10s) so a stuck mirror doesn't drag things out.
+  const query = `[out:json][timeout:20];(
+    node["name"~"^Alko",i](around:50000,${lat},${lon});
+    way["name"~"^Alko",i](around:50000,${lat},${lon});
+  );out center;`;
+
+  const endpoints = [
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
+  ];
+
+  window.__gompashiDebug = { lat, lon, attempts: [] };
+
+  function tryEndpoint(endpoint) {
+    const attempt = { endpoint };
+    window.__gompashiDebug.attempts.push(attempt);
+
+    // Abort fetch after 7s client-side so a hanging mirror doesn't block the race forever
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    return fetch(endpoint + '?data=' + encodeURIComponent(query), { signal: controller.signal })
+      .then(res => {
+        clearTimeout(timer);
+        attempt.httpStatus = res.status;
+        if (!res.ok) { attempt.error = 'HTTP ' + res.status; throw new Error(attempt.error); }
+        return res.json();
+      })
+      .then(data => {
+        attempt.rawElementCount = data.elements ? data.elements.length : 'no elements field';
+        if (!data.elements) { attempt.error = 'Unexpected response shape'; throw new Error(attempt.error); }
+
+        const seen = new Set();
+        const results = data.elements.map(el => {
+          const elLat = el.lat ?? el.center?.lat;
+          const elLon = el.lon ?? el.center?.lon;
+          const name = el.tags?.name || 'Alko';
+          const city = el.tags?.['addr:city'] || el.tags?.['addr:municipality'] || '';
+          return { name: city ? `${name} – ${city}` : name, lat: elLat, lon: elLon, dist: 0 };
+        }).filter(s => {
+          if (!s.lat || !s.lon) return false;
+          const key = s.lat.toFixed(4) + ',' + s.lon.toFixed(4);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        attempt.finalCount = results.length;
+        return results;
+      })
+      .catch(e => {
+        clearTimeout(timer);
+        attempt.error = attempt.error || String(e.name === 'AbortError' ? 'Timeout (15s)' : e);
+        throw e;
+      });
+  }
+
+  // Fire all three at once; resolve as soon as the fastest one succeeds.
+  // Promise.any waits for the first *fulfilled* promise and ignores rejections
+  // unless all of them fail.
+  try {
+    const results = await Promise.any(endpoints.map(tryEndpoint));
+    window.__gompashiDebug.success = true;
+    return results;
+  } catch (aggregateError) {
+    window.__gompashiDebug.allFailed = true;
+    // Surface the most informative underlying error
+    const firstReal = aggregateError.errors?.find(e => e) || aggregateError;
+    throw firstReal;
+  }
+}
+
+function sortStores() {
+  stores.forEach(s => s.dist = haversine(userLat, userLon, s.lat, s.lon));
+  stores.sort((a, b) => a.dist - b.dist);
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function bearing(lat1,lon1,lat2,lon2) {
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
+  const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+function showStore(delta) {
+  currentIdx = (currentIdx + delta + stores.length) % stores.length;
+  updateDisplay();
+}
+
+function updateDisplay() {
+  const store = stores[currentIdx];
+  if (!store) return;
+  const km = store.dist;
+  document.getElementById('dist-num').textContent = km < 10 ? km.toFixed(1) : Math.round(km);
+  document.getElementById('store-name').textContent = store.name;
+  currentBearing = bearing(userLat, userLon, store.lat, store.lon);
+  rotateBottle();
+}
+
+function rotateBottle() {
+  const adjusted = compassHeading != null ? (currentBearing - compassHeading + 360) % 360 : currentBearing;
+  document.getElementById('bottle-needle').style.transform = `rotate(${adjusted}deg)`;
+}
+
+function startCompass() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+    DeviceOrientationEvent.requestPermission().then(p => { if (p==='granted') listenOrientation(); }).catch(()=>{});
+  } else {
+    listenOrientation();
+  }
+}
+
+function listenOrientation() {
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('deviceorientation', handleOrientation, true);
+}
+
+function handleOrientation(e) {
+  let h = null;
+  if (e.absolute && e.alpha != null) h = (360 - e.alpha) % 360;
+  else if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+  if (h != null) { compassHeading = h; rotateBottle(); }
+}
+
+function showOverlay(which) {
+  document.getElementById('loading-overlay').classList.toggle('hidden', which !== 'loading');
+  document.getElementById('error-overlay').classList.toggle('hidden', which !== 'error');
+}
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  showOverlay('error');
+}
+
+// Minor ticks
+(function() {
+  const g = document.getElementById('minor-ticks');
+  for (let i=0;i<36;i++) {
+    if (i%9===0) continue;
+    const a = i*10*Math.PI/180;
+    const r1=136, r2=i%3===0?128:132;
+    const x1=150+r1*Math.sin(a), y1=150-r1*Math.cos(a);
+    const x2=150+r2*Math.sin(a), y2=150-r2*Math.cos(a);
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    g.appendChild(l);
+  }
+})();
+
+init();
+
+// Register service worker for installable PWA behavior
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+</script>
+</body>
+</html>
